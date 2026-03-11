@@ -25,7 +25,11 @@ Supports two server modes and four AI clients:
 
 ## Quick Start
 
-### macOS / Linux
+### macOS — Designers (one-click)
+
+Double-click **Install Figma MCP.command** in Finder. Done.
+
+### macOS / Linux — Terminal
 
 ```bash
 chmod +x setup.sh
@@ -34,9 +38,11 @@ chmod +x setup.sh
 
 Requires **python3** (pre-installed on macOS and most Linux distros).
 
-### Windows
+### Windows — Designers (one-click)
 
-Double-click **setup.bat**, or run in PowerShell:
+Double-click **Install Figma MCP.bat** in File Explorer. Done.
+
+### Windows — PowerShell
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\setup.ps1
