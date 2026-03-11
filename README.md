@@ -1,6 +1,13 @@
-# Official Figma MCP Server — Setup Scripts
+# Figma MCP — One-Click Setup
 
 One-click setup for the [official Figma MCP server](https://www.figma.com/blog/figma-mcp/) on **macOS / Linux / Windows**.
+
+## Why use this?
+
+- Without this, you'd have to **manually find and edit JSON config files** buried in app-specific folders
+- Each AI client (Claude Desktop, Claude Code, Cursor, VS Code) stores MCP settings in a **different location and format**
+- This script finds the right file, merges the Figma entry, and **preserves your existing settings** — in seconds
+- No API tokens to generate or paste — the official server uses **OAuth** (browser sign-in)
 
 Supports two server modes and four AI clients:
 

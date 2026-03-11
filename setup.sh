@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # ─────────────────────────────────────────────────────────────
-# Official Figma MCP Server — One-Click Setup
+# Figma MCP — One-Click Setup
 # Configures the remote (mcp.figma.com) or desktop (local) server
 # Usage: ./setup.sh
 #        ./setup.sh --force
@@ -231,10 +231,26 @@ fi
 # Banner
 # ─────────────────────────────────────────────────────────────
 echo ""
-echo -e "${BOLD}╔══════════════════════════════════════════════╗${NC}"
-echo -e "${BOLD}║   Official Figma MCP Server — Setup          ║${NC}"
-echo -e "${BOLD}║   Remote  •  Desktop                         ║${NC}"
-echo -e "${BOLD}╚══════════════════════════════════════════════╝${NC}"
+echo -e "${BOLD}╔══════════════════════════════════════════════════════╗${NC}"
+echo -e "${BOLD}║${NC}   Figma MCP — One-Click Setup                        ${BOLD}║${NC}"
+echo -e "${BOLD}║${NC}   Remote  •  Desktop                                 ${BOLD}║${NC}"
+echo -e "${BOLD}║${NC}${CYAN}          *        .    *      *              ${NC}${BOLD}║${NC}"
+printf "${BOLD}║${NC}${CYAN}    *    /|\\\\    *    /|\\\\   .  /|\\\\             ${NC}${BOLD}║${NC}\n"
+printf "${BOLD}║${NC}${CYAN}  .  @  / | \\\\     / | \\\\  @/ | \\\\   *         ${NC}${BOLD}║${NC}\n"
+printf "${BOLD}║${NC}${CYAN}    /#\\\\  \\\\___/  .  \\\\___/ /#\\\\ ___/           ${NC}${BOLD}║${NC}\n"
+printf "${BOLD}║${NC}${GREEN}  __|||___||______||___|||__||________      ${NC}${BOLD}║${NC}\n"
+echo -e "${BOLD}╠══════════════════════════════════════════════════════╣${NC}"
+echo -e "${BOLD}║${NC}  Connects your AI coding tool to Figma so it can    ${BOLD}║${NC}"
+echo -e "${BOLD}║${NC}  read designs, generate code, and stay in sync.     ${BOLD}║${NC}"
+echo -e "${BOLD}║${NC}  Supports: Claude Desktop, Claude Code, Cursor,     ${BOLD}║${NC}"
+echo -e "${BOLD}║${NC}  and VS Code. No API tokens needed — uses OAuth.    ${BOLD}║${NC}"
+echo -e "${BOLD}╚══════════════════════════════════════════════════════╝${NC}"
+echo ""
+echo -e "${BOLD}   Why use this?${NC}"
+echo -e "   ${DIM}• Without this, you'd manually edit JSON config files${NC}"
+echo -e "   ${DIM}• Each AI client stores MCP settings in a different place${NC}"
+echo -e "   ${DIM}• This script finds the right file, merges the entry,${NC}"
+echo -e "   ${DIM}  and preserves your existing settings — in seconds.${NC}"
 echo ""
 
 # ─────────────────────────────────────────────────────────────

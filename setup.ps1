@@ -1,4 +1,4 @@
-# Official Figma MCP Server — Windows Setup
+# Figma MCP — One-Click Setup (Windows)
 # Configures the remote (mcp.figma.com) or desktop (local) server
 # No external dependencies — uses native PowerShell JSON handling
 # Usage: powershell -ExecutionPolicy Bypass -File .\setup.ps1
@@ -203,10 +203,26 @@ function Restart-Claude {
 # Banner
 # ============================================================
 Write-Host ""
-Write-Host "========================================" -ForegroundColor Cyan
-Write-Host "  Official Figma MCP Server - Setup     " -ForegroundColor Cyan
-Write-Host "  Remote  |  Desktop                    " -ForegroundColor DarkGray
-Write-Host "========================================" -ForegroundColor Cyan
+Write-Host "====================================================" -ForegroundColor Cyan
+Write-Host "  Figma MCP — One-Click Setup                       " -ForegroundColor Cyan
+Write-Host "  Remote  |  Desktop                                " -ForegroundColor DarkGray
+Write-Host "            *          .  *       *      " -ForegroundColor Cyan
+Write-Host "      *    /|\    *    /|\   .  /|\       " -ForegroundColor Cyan
+Write-Host "   .  @   / | \      / | \   @/ | \   *  " -ForegroundColor Cyan
+Write-Host "     /#\  \___/  .   \___/  /#\ ___/     " -ForegroundColor Cyan
+Write-Host "  ___|||_____||________||___|||__||____  " -ForegroundColor Green
+Write-Host "====================================================" -ForegroundColor Cyan
+Write-Host "  Connects your AI coding tool to Figma so it can  "
+Write-Host "  read designs, generate code, and stay in sync.   "
+Write-Host "  Supports: Claude Desktop, Claude Code, Cursor,   "
+Write-Host "  and VS Code. No API tokens needed - uses OAuth.  "
+Write-Host "====================================================" -ForegroundColor Cyan
+Write-Host ""
+Write-Host "  Why use this?" -ForegroundColor White
+Write-Host "    Without this, you'd manually edit JSON config files" -ForegroundColor DarkGray
+Write-Host "    Each AI client stores MCP settings in a different place" -ForegroundColor DarkGray
+Write-Host "    This script finds the right file, merges the entry," -ForegroundColor DarkGray
+Write-Host "    and preserves your existing settings - in seconds." -ForegroundColor DarkGray
 Write-Host ""
 
 # ============================================================
