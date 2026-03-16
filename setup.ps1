@@ -69,7 +69,7 @@ function Get-CurrentMode {
     return ""
 }
 
-# Read JSON, merge entry, write back — pure PowerShell
+# Read JSON, merge entry, write back — pure PowerShell (url format for Cursor, Claude Code)
 function Write-McpServersConfig {
     param([string]$FilePath, [string]$Name, [string]$Url)
     $dir = Split-Path -Parent $FilePath
@@ -103,6 +103,41 @@ function Write-McpServersConfig {
     $config.mcpServers = $servers
     $config | ConvertTo-Json -Depth 10 | Set-Content $FilePath -Encoding UTF8
     Write-Host "  Configured: $FilePath" -ForegroundColor Green
+}
+
+# Write Claude Desktop config (command/args format via mcp-remote)
+function Write-ClaudeDesktopConfig {
+    param([string]$Name, [string]$Url)
+    $FilePath = "$env:APPDATA\Claude\claude_desktop_config.json"
+    $dir = Split-Path -Parent $FilePath
+    if (-not (Test-Path $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
+
+    $config = @{}
+    if (Test-Path $FilePath) {
+        try {
+            $raw = Get-Content $FilePath -Raw -ErrorAction Stop
+            $config = $raw | ConvertFrom-Json -ErrorAction Stop
+        } catch {
+            Write-Host "  $FilePath has invalid JSON - fix it manually then re-run" -ForegroundColor Red
+            return
+        }
+    }
+
+    if (-not $config.mcpServers) {
+        $config | Add-Member -NotePropertyName "mcpServers" -NotePropertyValue ([ordered]@{}) -Force
+    }
+
+    $servers = [ordered]@{}
+    $config.mcpServers.PSObject.Properties | ForEach-Object {
+        if ($_.Name -ne "figma" -and $_.Name -ne "figma-desktop") {
+            $servers[$_.Name] = $_.Value
+        }
+    }
+    $servers[$Name] = [ordered]@{ command = "npx"; args = @("-y", "mcp-remote", $Url) }
+
+    $config.mcpServers = $servers
+    $config | ConvertTo-Json -Depth 10 | Set-Content $FilePath -Encoding UTF8
+    Write-Host "  Claude Desktop configured" -ForegroundColor Green
 }
 
 # VS Code uses "servers" not "mcpServers", plus "type": "http"
@@ -164,12 +199,12 @@ function Update-ClientConfigs {
     Write-Host "  1) Claude Desktop  2) Claude Code  3) Cursor  4) VS Code  5) All  6) Skip"
     $cc = Read-Host "  Choose [1-6]"
     switch ($cc) {
-        "1" { Write-McpServersConfig "$env:APPDATA\Claude\claude_desktop_config.json" $script:ServerName $script:ServerUrl }
+        "1" { Write-ClaudeDesktopConfig $script:ServerName $script:ServerUrl }
         "2" { Set-ClaudeCode $script:ServerName $script:ServerUrl }
         "3" { Write-McpServersConfig "$env:USERPROFILE\.cursor\mcp.json" $script:ServerName $script:ServerUrl }
         "4" { Write-VSCodeConfig $script:ServerName $script:ServerUrl }
         "5" {
-            Write-McpServersConfig "$env:APPDATA\Claude\claude_desktop_config.json" $script:ServerName $script:ServerUrl
+            Write-ClaudeDesktopConfig $script:ServerName $script:ServerUrl
             Set-ClaudeCode $script:ServerName $script:ServerUrl
             Write-McpServersConfig "$env:USERPROFILE\.cursor\mcp.json" $script:ServerName $script:ServerUrl
             Write-VSCodeConfig $script:ServerName $script:ServerUrl
@@ -265,6 +300,8 @@ if (-not $Force) {
                     if (Test-HasFigmaConfig $cf) {
                         if ($cf -eq "$env:USERPROFILE\.claude.json") {
                             Set-ClaudeCode $script:ServerName $script:ServerUrl
+                        } elseif ($cf -eq "$env:APPDATA\Claude\claude_desktop_config.json") {
+                            Write-ClaudeDesktopConfig $script:ServerName $script:ServerUrl
                         } else {
                             Write-McpServersConfig $cf $script:ServerName $script:ServerUrl
                         }

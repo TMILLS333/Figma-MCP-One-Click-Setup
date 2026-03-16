@@ -38,6 +38,8 @@ chmod +x setup.sh
 
 Requires **python3** (pre-installed on macOS and most Linux distros).
 
+> **Note:** Claude Desktop requires **Node.js** (for `npx mcp-remote`) since it doesn't support the `url` transport directly. The setup script handles this automatically.
+
 ### Windows — Designers (one-click)
 
 Double-click **Install Figma MCP.bat** in File Explorer. Done.

@@ -99,7 +99,7 @@ detect_current_mode() {
     echo ""
 }
 
-# Write/merge mcpServers config (Claude Desktop, Cursor, Claude Code)
+# Write/merge mcpServers config (Cursor, Claude Code — url format)
 write_mcp_servers_config() {
     local CONFIG_FILE="$1"
     local LABEL="$2"
@@ -127,6 +127,34 @@ with open(config_path, 'w') as f:
         return 1
     fi
     echo -e "${GREEN}   ✅ $LABEL configured${NC}"
+}
+
+# Write Claude Desktop config (command/args format via mcp-remote)
+write_claude_desktop_config() {
+    local NAME="$1"
+    local URL="$2"
+
+    mkdir -p "$(dirname "$CLAUDE_CONFIG_FILE")"
+
+    if ! python3 -c "
+import json, sys, os
+config_path, name, url = sys.argv[1], sys.argv[2], sys.argv[3]
+config = {}
+if os.path.isfile(config_path):
+    with open(config_path) as f:
+        config = json.load(f)
+servers = config.setdefault('mcpServers', {})
+servers.pop('figma', None)
+servers.pop('figma-desktop', None)
+servers[name] = {'command': 'npx', 'args': ['-y', 'mcp-remote', url]}
+with open(config_path, 'w') as f:
+    json.dump(config, f, indent=2)
+    f.write('\n')
+" "$CLAUDE_CONFIG_FILE" "$NAME" "$URL" 2>/dev/null; then
+        echo -e "${RED}   ❌ $CLAUDE_CONFIG_FILE has invalid JSON — fix it manually${NC}"
+        return 1
+    fi
+    echo -e "${GREEN}   ✅ Claude Desktop configured${NC}"
 }
 
 # Write VS Code mcp.json (servers format, not mcpServers)
@@ -176,7 +204,7 @@ configure_claude_code() {
 }
 
 # Client configurators
-configure_desktop_app() { write_mcp_servers_config "$CLAUDE_CONFIG_FILE" "Claude Desktop" "$SERVER_NAME" "$SERVER_URL"; }
+configure_desktop_app() { write_claude_desktop_config "$SERVER_NAME" "$SERVER_URL"; }
 configure_cursor()      { write_mcp_servers_config "$CURSOR_CONFIG_FILE" "Cursor" "$SERVER_NAME" "$SERVER_URL"; }
 configure_vscode()      { write_vscode_config "$SERVER_NAME" "$SERVER_URL"; }
 configure_code()        { configure_claude_code "$SERVER_NAME" "$SERVER_URL"; }
@@ -304,8 +332,10 @@ if [ "$FORCE" = false ]; then
                         if [ "$cf" = "$CLAUDE_CODE_CONFIG_FILE" ]; then
                             configure_code; continue
                         fi
+                        if [ "$cf" = "$CLAUDE_CONFIG_FILE" ]; then
+                            write_claude_desktop_config "$SERVER_NAME" "$SERVER_URL"; continue
+                        fi
                         label=""
-                        if [ "$cf" = "$CLAUDE_CONFIG_FILE" ]; then label="Claude Desktop"; fi
                         if [ "$cf" = "$CURSOR_CONFIG_FILE" ]; then label="Cursor"; fi
                         write_mcp_servers_config "$cf" "$label" "$SERVER_NAME" "$SERVER_URL"
                     fi
