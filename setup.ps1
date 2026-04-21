@@ -4,6 +4,7 @@
 #   - Claude Desktop
 #   - Claude Code
 #   - Cowork (guided: Figma is an official connector in Cowork's registry)
+#   - VS Code
 #
 # Safe to re-run. Preserves any other MCPs already configured.
 # Uses native PowerShell JSON - no external dependencies.
@@ -25,44 +26,54 @@ function Prompt-YN($q, $default='Y') {
 # ---------- config paths ----------
 $ClaudeDesktopDir    = Join-Path $env:APPDATA 'Claude'
 $ClaudeDesktopConfig = Join-Path $ClaudeDesktopDir 'claude_desktop_config.json'
+$VSCodeUserDir       = Join-Path $env:APPDATA 'Code\User'
+$VSCodeMcpConfig     = Join-Path $VSCodeUserDir 'mcp.json'
 $FigmaMcpUrl         = 'https://mcp.figma.com/mcp'
 
-# ---------- header ----------
+# ---------- banner ----------
 Clear-Host
-Write-Host "Figma MCP - One-Click Setup" -ForegroundColor White
-Write-Host "Connects Figma to Claude Desktop, Claude Code, and Cowork." -ForegroundColor DarkGray
+Write-Host ""
+Write-Host "  +--+  +--+  +--+" -ForegroundColor White
+Write-Host "  |  |  |  |  |  |" -NoNewline -ForegroundColor White
+Write-Host "     Figma MCP - One-Click Setup" -ForegroundColor White
+Write-Host "  +--+  +--+  +--+" -NoNewline -ForegroundColor White
+Write-Host "     design -> AI, without the JSON" -ForegroundColor DarkGray
+Write-Host ""
+Write-Host "  Connects Figma to Claude Desktop, Claude Code, Cowork, and VS Code." -ForegroundColor DarkGray
+Write-Host "  No API tokens - uses OAuth. Safe to re-run." -ForegroundColor DarkGray
 Write-Host ""
 
 # ---------- which clients? ----------
 Write-Step "Which clients do you want to set up?"
-Write-Host "  1) All three - Claude Desktop, Claude Code, and Cowork (recommended)"
+Write-Host "  1) All four - Claude Desktop, Claude Code, Cowork, and VS Code (recommended)"
 Write-Host "  2) Claude Desktop only"
 Write-Host "  3) Claude Code only"
 Write-Host "  4) Cowork only (just show me the two clicks)"
-Write-Host "  5) Custom - pick a combo"
+Write-Host "  5) VS Code only"
+Write-Host "  6) Custom - pick a combo"
 Write-Host ""
-$choice = Read-Host "Pick [1-5, default 1]"
+$choice = Read-Host "Pick [1-6, default 1]"
 if ([string]::IsNullOrWhiteSpace($choice)) { $choice = '1' }
 
-$DoDesktop = $false; $DoCode = $false; $DoCowork = $false
+$DoDesktop = $false; $DoCode = $false; $DoCowork = $false; $DoVSCode = $false
 switch ($choice) {
-  '1' { $DoDesktop = $true; $DoCode = $true; $DoCowork = $true }
+  '1' { $DoDesktop = $true; $DoCode = $true; $DoCowork = $true; $DoVSCode = $true }
   '2' { $DoDesktop = $true }
   '3' { $DoCode = $true }
   '4' { $DoCowork = $true }
-  '5' {
+  '5' { $DoVSCode = $true }
+  '6' {
     $DoDesktop = Prompt-YN "Claude Desktop?"
     $DoCode    = Prompt-YN "Claude Code?"
     $DoCowork  = Prompt-YN "Cowork?"
+    $DoVSCode  = Prompt-YN "VS Code?"
   }
   default { Write-Err2 "Invalid choice."; exit 1 }
 }
 
-# ---------- Claude Desktop ----------
+# ---------- Claude Desktop preflight ----------
 if ($DoDesktop) {
   Write-Step "Setting up Claude Desktop"
-
-  # Node check - needed for npx mcp-remote
   $node = Get-Command node -ErrorAction SilentlyContinue
   if (-not $node) {
     Write-Err2 "Node.js is not installed. Claude Desktop needs it to connect to remote MCPs."
@@ -72,6 +83,7 @@ if ($DoDesktop) {
   }
 }
 
+# ---------- Claude Desktop config ----------
 if ($DoDesktop) {
   if (-not (Test-Path $ClaudeDesktopDir)) {
     New-Item -ItemType Directory -Path $ClaudeDesktopDir -Force | Out-Null
@@ -87,7 +99,6 @@ if ($DoDesktop) {
     Write-Ok "Backed up existing config to $(Split-Path $backup -Leaf)"
   }
 
-  # Load, merge, save
   $raw = (Get-Content -Raw -Path $ClaudeDesktopConfig)
   if ([string]::IsNullOrWhiteSpace($raw)) { $raw = '{}' }
   try {
@@ -98,28 +109,23 @@ if ($DoDesktop) {
   }
   if ($null -eq $config) { $config = [PSCustomObject]@{} }
 
-  # Ensure mcpServers object exists
   if (-not ($config.PSObject.Properties.Name -contains 'mcpServers')) {
     $config | Add-Member -MemberType NoteProperty -Name 'mcpServers' -Value ([PSCustomObject]@{})
   }
 
-  # Build the figma entry
   $figmaEntry = [PSCustomObject]@{
     command = 'npx'
     args    = @('-y', 'mcp-remote', $FigmaMcpUrl)
   }
 
-  # Add or overwrite 'figma'
   if ($config.mcpServers.PSObject.Properties.Name -contains 'figma') {
     $config.mcpServers.figma = $figmaEntry
   } else {
     $config.mcpServers | Add-Member -MemberType NoteProperty -Name 'figma' -Value $figmaEntry
   }
 
-  # Write back (pretty)
   $config | ConvertTo-Json -Depth 10 | Set-Content -Path $ClaudeDesktopConfig -Encoding UTF8
-  Write-Ok "Added 'figma' to mcpServers (existing servers preserved)."
-  Write-Ok "Claude Desktop configured."
+  Write-Ok "Claude Desktop configured (existing servers preserved)."
 }
 
 # ---------- Claude Code ----------
@@ -158,7 +164,58 @@ if ($DoCode) {
   }
 }
 
-# ---------- Cowork (guided - 2 clicks) ----------
+# ---------- VS Code ----------
+if ($DoVSCode) {
+  Write-Step "Setting up VS Code"
+
+  if (-not (Test-Path $VSCodeUserDir)) {
+    New-Item -ItemType Directory -Path $VSCodeUserDir -Force | Out-Null
+  }
+
+  if (-not (Test-Path $VSCodeMcpConfig)) {
+    Write-Ok "Creating new mcp.json at $VSCodeMcpConfig"
+    '{}' | Set-Content -Path $VSCodeMcpConfig -Encoding UTF8
+  } else {
+    $stamp  = Get-Date -Format 'yyyyMMdd-HHmmss'
+    $backup = "$VSCodeMcpConfig.backup.$stamp"
+    Copy-Item -Path $VSCodeMcpConfig -Destination $backup
+    Write-Ok "Backed up existing VS Code mcp.json to $(Split-Path $backup -Leaf)"
+  }
+
+  $rawVs = (Get-Content -Raw -Path $VSCodeMcpConfig)
+  if ([string]::IsNullOrWhiteSpace($rawVs)) { $rawVs = '{}' }
+  try {
+    $vsConfig = $rawVs | ConvertFrom-Json
+  } catch {
+    Write-Warn2 "Existing VS Code mcp.json wasn't valid JSON; starting fresh (backup kept)."
+    $vsConfig = [PSCustomObject]@{}
+  }
+  if ($null -eq $vsConfig) { $vsConfig = [PSCustomObject]@{} }
+
+  if (-not ($vsConfig.PSObject.Properties.Name -contains 'inputs')) {
+    $vsConfig | Add-Member -MemberType NoteProperty -Name 'inputs' -Value @()
+  }
+  if (-not ($vsConfig.PSObject.Properties.Name -contains 'servers')) {
+    $vsConfig | Add-Member -MemberType NoteProperty -Name 'servers' -Value ([PSCustomObject]@{})
+  }
+
+  # VS Code takes the HTTP URL directly (no mcp-remote wrapper needed)
+  $vsFigmaEntry = [PSCustomObject]@{
+    url  = $FigmaMcpUrl
+    type = 'http'
+  }
+  if ($vsConfig.servers.PSObject.Properties.Name -contains 'figma') {
+    $vsConfig.servers.figma = $vsFigmaEntry
+  } else {
+    $vsConfig.servers | Add-Member -MemberType NoteProperty -Name 'figma' -Value $vsFigmaEntry
+  }
+
+  $vsConfig | ConvertTo-Json -Depth 10 | Set-Content -Path $VSCodeMcpConfig -Encoding UTF8
+  Write-Ok "VS Code configured."
+  Write-Host "    In VS Code, open mcp.json and click 'Start' above the figma server entry." -ForegroundColor DarkGray
+}
+
+# ---------- Cowork ----------
 if ($DoCowork) {
   Write-Step "Setting up Cowork"
   Write-Host "  Figma is an official Cowork connector - this part is 2 clicks, no file editing." -ForegroundColor DarkGray
@@ -186,7 +243,7 @@ if ($DoCowork) {
   }
 }
 
-# ---------- restart Claude Desktop so config loads ----------
+# ---------- restart Claude Desktop ----------
 if ($DoDesktop) {
   Write-Step "Restart Claude Desktop so the new config loads"
   if (Prompt-YN "Restart Claude Desktop now?") {
@@ -210,7 +267,9 @@ if ($DoDesktop) {
 Write-Host ""
 Write-Host "All set." -ForegroundColor Green
 Write-Host ""
+Write-Host "Authenticate: when you first use a Figma tool, a browser window"
+Write-Host "will open. Sign in to Figma and click Allow."
+Write-Host ""
 Write-Host "Test it: in Claude, type  List MCP tools"
 Write-Host "You should see Figma tools like get_design_context, get_screenshot, get_metadata."
 Write-Host ""
-Write-Host "Part of How to Platypus - weareplatypus.com" -ForegroundColor DarkGray

@@ -5,15 +5,18 @@
 #   - Claude Desktop
 #   - Claude Code
 #   - Cowork (guided: Figma is an official connector in Cowork's registry)
+#   - VS Code
 #
 # Safe to re-run. Preserves any other MCPs already configured.
 
 set -euo pipefail
 
 # ---------- pretty output ----------
-BOLD=$'\033[1m'; DIM=$'\033[2m'; GREEN=$'\033[32m'; BLUE=$'\033[34m'
-YELLOW=$'\033[33m'; RED=$'\033[31m'; RESET=$'\033[0m'
-say()    { printf "%s\n" "$*"; }
+BOLD=$'\033[1m'; DIM=$'\033[2m'
+RED=$'\033[31m'; GREEN=$'\033[32m'; YELLOW=$'\033[33m'
+BLUE=$'\033[34m'; MAGENTA=$'\033[35m'; CYAN=$'\033[36m'
+RESET=$'\033[0m'
+
 step()   { printf "\n${BOLD}${BLUE}▸${RESET} ${BOLD}%s${RESET}\n" "$*"; }
 ok()     { printf "  ${GREEN}✓${RESET} %s\n" "$*"; }
 warn()   { printf "  ${YELLOW}!${RESET} %s\n" "$*"; }
@@ -28,60 +31,65 @@ case "$OS" in
   *) err "This script supports macOS and Linux. For Windows, use setup.ps1."; exit 1 ;;
 esac
 
-# ---------- Claude Desktop config path ----------
+# ---------- config paths ----------
 if [[ "$PLATFORM" == "mac" ]]; then
   CLAUDE_DESKTOP_DIR="$HOME/Library/Application Support/Claude"
+  VSCODE_USER_DIR="$HOME/Library/Application Support/Code/User"
 else
   CLAUDE_DESKTOP_DIR="$HOME/.config/Claude"
+  VSCODE_USER_DIR="$HOME/.config/Code/User"
 fi
 CLAUDE_DESKTOP_CONFIG="$CLAUDE_DESKTOP_DIR/claude_desktop_config.json"
+VSCODE_MCP_CONFIG="$VSCODE_USER_DIR/mcp.json"
 
-# ---------- the Figma MCP entry (remote, OAuth via mcp-remote) ----------
+# ---------- Figma MCP endpoint ----------
 FIGMA_MCP_URL="https://mcp.figma.com/mcp"
-FIGMA_ENTRY_JSON='{
-  "command": "npx",
-  "args": ["-y", "mcp-remote", "'"$FIGMA_MCP_URL"'"]
-}'
 
-# ---------- header ----------
+# ---------- banner ----------
 clear 2>/dev/null || true
 cat <<EOF
-${BOLD}Figma MCP — One-Click Setup${RESET}
-${DIM}Connects Figma to Claude Desktop, Claude Code, and Cowork.${RESET}
+
+  ${RED}┌──┐${RESET}  ${MAGENTA}┌──┐${RESET}  ${BLUE}┌──┐${RESET}
+  ${RED}│  │${RESET}  ${MAGENTA}│  │${RESET}  ${BLUE}│  │${RESET}     ${BOLD}Figma MCP — One-Click Setup${RESET}
+  ${RED}└──┘${RESET}  ${MAGENTA}└──┘${RESET}  ${BLUE}└──┘${RESET}     ${DIM}design → AI, without the JSON${RESET}
+
+  ${DIM}Connects Figma to Claude Desktop, Claude Code, Cowork, and VS Code.${RESET}
+  ${DIM}No API tokens — uses OAuth. Safe to re-run.${RESET}
 
 EOF
 
 # ---------- which clients? ----------
 step "Which clients do you want to set up?"
-echo "  1) All three — Claude Desktop, Claude Code, and Cowork (recommended)"
+echo "  1) All four — Claude Desktop, Claude Code, Cowork, and VS Code (recommended)"
 echo "  2) Claude Desktop only"
 echo "  3) Claude Code only"
 echo "  4) Cowork only (just show me the two clicks)"
-echo "  5) Custom — pick a combo"
+echo "  5) VS Code only"
+echo "  6) Custom — pick a combo"
 echo
-prompt "Pick [1-5, default 1]:"
+prompt "Pick [1-6, default 1]:"
 read -r choice
 choice="${choice:-1}"
 
-DO_DESKTOP=0; DO_CODE=0; DO_COWORK=0
+DO_DESKTOP=0; DO_CODE=0; DO_COWORK=0; DO_VSCODE=0
 case "$choice" in
-  1) DO_DESKTOP=1; DO_CODE=1; DO_COWORK=1 ;;
+  1) DO_DESKTOP=1; DO_CODE=1; DO_COWORK=1; DO_VSCODE=1 ;;
   2) DO_DESKTOP=1 ;;
   3) DO_CODE=1 ;;
   4) DO_COWORK=1 ;;
-  5)
+  5) DO_VSCODE=1 ;;
+  6)
     prompt "Claude Desktop? [Y/n]:"; read -r a; [[ "${a:-y}" =~ ^[Yy] ]] && DO_DESKTOP=1
     prompt "Claude Code? [Y/n]:";    read -r a; [[ "${a:-y}" =~ ^[Yy] ]] && DO_CODE=1
     prompt "Cowork? [Y/n]:";         read -r a; [[ "${a:-y}" =~ ^[Yy] ]] && DO_COWORK=1
+    prompt "VS Code? [Y/n]:";        read -r a; [[ "${a:-y}" =~ ^[Yy] ]] && DO_VSCODE=1
     ;;
   *) err "Invalid choice."; exit 1 ;;
 esac
 
-# ---------- Claude Desktop ----------
+# ---------- preflight ----------
 if [[ $DO_DESKTOP -eq 1 ]]; then
   step "Setting up Claude Desktop"
-
-  # Node check — needed for npx mcp-remote
   if ! command -v node >/dev/null 2>&1; then
     err "Node.js is not installed. Claude Desktop needs it to connect to remote MCPs."
     if [[ "$PLATFORM" == "mac" ]]; then
@@ -94,6 +102,19 @@ if [[ $DO_DESKTOP -eq 1 ]]; then
   fi
 fi
 
+if [[ $DO_DESKTOP -eq 1 || $DO_VSCODE -eq 1 ]]; then
+  if ! command -v python3 >/dev/null 2>&1; then
+    err "python3 is required for JSON merging but wasn't found."
+    if [[ "$PLATFORM" == "mac" ]]; then
+      warn "Install it with: xcode-select --install   (or brew install python3)"
+    else
+      warn "Install it with your package manager (e.g. sudo apt-get install python3)"
+    fi
+    exit 1
+  fi
+fi
+
+# ---------- Claude Desktop ----------
 if [[ $DO_DESKTOP -eq 1 ]]; then
   mkdir -p "$CLAUDE_DESKTOP_DIR"
 
@@ -101,23 +122,15 @@ if [[ $DO_DESKTOP -eq 1 ]]; then
     ok "Creating new config at $CLAUDE_DESKTOP_CONFIG"
     echo '{}' > "$CLAUDE_DESKTOP_CONFIG"
   else
-    # back up existing config
     BACKUP="$CLAUDE_DESKTOP_CONFIG.backup.$(date +%Y%m%d-%H%M%S)"
     cp "$CLAUDE_DESKTOP_CONFIG" "$BACKUP"
     ok "Backed up existing config to $(basename "$BACKUP")"
   fi
 
-  if ! command -v python3 >/dev/null 2>&1; then
-    err "python3 is required for JSON merging but wasn't found."
-    if [[ "$PLATFORM" == "mac" ]]; then
-      warn "Install it with: brew install python3"
-    fi
-    exit 1
-  fi
-
-  python3 - "$CLAUDE_DESKTOP_CONFIG" <<'PY'
+  python3 - "$CLAUDE_DESKTOP_CONFIG" "$FIGMA_MCP_URL" <<'PY'
 import json, sys, pathlib
 path = pathlib.Path(sys.argv[1])
+url  = sys.argv[2]
 try:
     data = json.loads(path.read_text()) if path.read_text().strip() else {}
 except Exception:
@@ -125,15 +138,10 @@ except Exception:
 if not isinstance(data, dict):
     data = {}
 servers = data.setdefault("mcpServers", {})
-servers["figma"] = {
-    "command": "npx",
-    "args": ["-y", "mcp-remote", "https://mcp.figma.com/mcp"]
-}
+servers["figma"] = {"command": "npx", "args": ["-y", "mcp-remote", url]}
 path.write_text(json.dumps(data, indent=2) + "\n")
-print("  \033[32m\u2713\033[0m Added 'figma' to mcpServers (existing servers preserved)")
 PY
-
-  ok "Claude Desktop configured."
+  ok "Claude Desktop configured (existing servers preserved)."
 fi
 
 # ---------- Claude Code ----------
@@ -142,15 +150,14 @@ if [[ $DO_CODE -eq 1 ]]; then
   if ! command -v claude >/dev/null 2>&1; then
     warn "The 'claude' CLI is not installed. Install it from https://claude.com/claude-code and re-run."
   else
-    # Check if already present
     if claude mcp list 2>/dev/null | grep -q "^figma\b\|^figma "; then
       ok "Claude Code already has 'figma' configured. Skipping."
     else
       if claude mcp add --transport http figma "$FIGMA_MCP_URL" --scope user 2>/dev/null; then
         ok "Added 'figma' to Claude Code (user scope)."
       else
-        warn "Could not add via --transport http. Trying fallback with mcp-remote..."
-        if claude mcp add figma -- npx -y mcp-remote "$FIGMA_MCP_URL" --scope user; then
+        warn "Could not add via --transport http. Trying mcp-remote fallback..."
+        if claude mcp add figma --scope user -- npx -y mcp-remote "$FIGMA_MCP_URL"; then
           ok "Added 'figma' via mcp-remote fallback."
         else
           err "Failed to add to Claude Code. Run manually:"
@@ -161,7 +168,41 @@ if [[ $DO_CODE -eq 1 ]]; then
   fi
 fi
 
-# ---------- Cowork (guided — 2 clicks) ----------
+# ---------- VS Code ----------
+if [[ $DO_VSCODE -eq 1 ]]; then
+  step "Setting up VS Code"
+  mkdir -p "$VSCODE_USER_DIR"
+
+  if [[ ! -f "$VSCODE_MCP_CONFIG" ]]; then
+    ok "Creating new mcp.json at $VSCODE_MCP_CONFIG"
+    echo '{}' > "$VSCODE_MCP_CONFIG"
+  else
+    BACKUP="$VSCODE_MCP_CONFIG.backup.$(date +%Y%m%d-%H%M%S)"
+    cp "$VSCODE_MCP_CONFIG" "$BACKUP"
+    ok "Backed up existing VS Code mcp.json to $(basename "$BACKUP")"
+  fi
+
+  # VS Code uses "servers" (not "mcpServers") and takes a direct HTTP URL
+  python3 - "$VSCODE_MCP_CONFIG" "$FIGMA_MCP_URL" <<'PY'
+import json, sys, pathlib
+path = pathlib.Path(sys.argv[1])
+url  = sys.argv[2]
+try:
+    data = json.loads(path.read_text()) if path.read_text().strip() else {}
+except Exception:
+    data = {}
+if not isinstance(data, dict):
+    data = {}
+data.setdefault("inputs", [])
+servers = data.setdefault("servers", {})
+servers["figma"] = {"url": url, "type": "http"}
+path.write_text(json.dumps(data, indent=2) + "\n")
+PY
+  ok "VS Code configured."
+  echo "    ${DIM}In VS Code, open mcp.json and click 'Start' above the figma server entry.${RESET}"
+fi
+
+# ---------- Cowork ----------
 if [[ $DO_COWORK -eq 1 ]]; then
   step "Setting up Cowork"
   cat <<EOF
@@ -211,8 +252,10 @@ cat <<EOF
 
 ${BOLD}${GREEN}All set.${RESET}
 
-${BOLD}Test it:${RESET} in Claude, type  ${DIM}List MCP tools${RESET}
-You should see Figma tools like get_design_context, get_screenshot, get_metadata.
+${BOLD}Authenticate:${RESET} when you first use a Figma tool, a browser window
+will open. Sign in to Figma and click ${BOLD}Allow${RESET}.
 
-${DIM}Part of How to Platypus · weareplatypus.com${RESET}
+${BOLD}Test it:${RESET} in Claude, type  ${DIM}List MCP tools${RESET}
+You should see Figma tools like ${CYAN}get_design_context${RESET}, ${CYAN}get_screenshot${RESET}, ${CYAN}get_metadata${RESET}.
+
 EOF
