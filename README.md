@@ -28,12 +28,36 @@ On **macOS** and **Windows**. No Node.js knowledge, no JSON editing, no tokens �
 
 ### First-time macOS warning
 
-macOS may say *"'Install Figma MCP.command' cannot be opened because it is from an unidentified developer."* That's normal for scripts you download. Fix:
+macOS blocks scripts downloaded from the internet on first run. You'll see one of two dialogs.
 
-- Right-click (or Control-click) the file → **Open** → **Open** again in the dialog that appears.
-- Or run `xattr -d com.apple.quarantine "Install Figma MCP.command"` in Terminal once.
+**Older dialog** — *"cannot be opened because it is from an unidentified developer"* with an **Open** button available via right-click:
 
-After that one-time approval, double-clicking works like any other app.
+- Right-click (or Control-click) the file → **Open** → **Open** again in the dialog.
+
+**Newer dialog (macOS Sequoia and later)** — *"Apple could not verify … is free of malware"* with only **Move to Trash** / **Done** buttons (no Open option). Pick any one of these:
+
+**Option A — Fix it in Terminal (fastest):**
+```bash
+xattr -cr ~/Downloads/Figma-MCP-One-Click-Setup-main
+```
+Replace the path with wherever you unzipped it. `xattr -cr` clears the quarantine attribute from every file in the folder, recursively. Then double-click the installer again — it'll open.
+
+*Tip: drag the unzipped folder from Finder into Terminal to auto-paste the correct path.*
+
+**Option B — Skip the double-click entirely:**
+```bash
+bash ~/Downloads/Figma-MCP-One-Click-Setup-main/setup.sh
+```
+Running `setup.sh` directly with bash bypasses Gatekeeper — you're telling your shell to run it explicitly.
+
+**Option C — The GUI way (no Terminal):**
+1. Click **Done** on the warning dialog.
+2. Open **System Settings → Privacy & Security**.
+3. Scroll down to the **Security** section.
+4. You'll see a line about `"Install Figma MCP.command" was blocked`, with an **Open Anyway** button.
+5. Click it, authenticate with Touch ID / password, then double-click the `.command` file again.
+
+After any one of these, double-clicking works like any other app.
 
 ---
 
