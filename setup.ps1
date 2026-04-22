@@ -8,13 +8,8 @@
 # Cowork uses a 2-click UI flow (Customize -> Figma -> Connect) and isn't
 # scriptable, so it's documented in the README/landing page instead.
 #
-# Usage: .\setup.ps1
-#        .\setup.ps1 -Plain   # force number-typing menu (skip arrow keys)
-#
 # Safe to re-run. Preserves any other MCPs already configured.
 # Uses native PowerShell JSON - no external dependencies.
-
-param([switch]$Plain)
 
 $ErrorActionPreference = 'Stop'
 
@@ -49,109 +44,27 @@ Write-Host ""
 Write-Host "  Safe to re-run." -ForegroundColor DarkGray
 Write-Host ""
 
-# ---------- menu definitions ----------
-$MenuOptions  = @(
-  'Claude Desktop',
-  'Claude Code',
-  'VS Code',
-  'All of the above',
-  "Show me where it's already connected"
-)
-$DefaultIndex = 3  # 0-based; points to "All of the above"
+# ---------- menu ----------
+Write-Step "Connect Figma to:"
+Write-Host "  1) Claude Desktop"
+Write-Host "  2) Claude Code"
+Write-Host "  3) VS Code"
+Write-Host "  4) All of the above"
+Write-Host "  5) Show me where it's already connected"
+Write-Host ""
+Write-Host "  (Type 1-5, or Enter for All of the above)" -ForegroundColor DarkGray
+Write-Host ""
+$choice = Read-Host "Your pick"
+if ([string]::IsNullOrWhiteSpace($choice)) { $choice = '4' }
 
-# ---------- can we use the fancy arrow-key menu? ----------
-# PowerShell's [Console]::ReadKey works well in the standard terminal.
-# We opt out if -Plain was passed or if the host doesn't support cursor control.
-$UseFancy = $true
-if ($Plain) { $UseFancy = $false }
-try {
-  # If any of these throw, the host can't do fancy rendering
-  $null = [Console]::CursorVisible
-  $null = [Console]::WindowWidth
-} catch {
-  $UseFancy = $false
-}
-
-function Show-FancyMenu {
-  $selected = $DefaultIndex
-  $count    = $MenuOptions.Count
-
-  [Console]::CursorVisible = $false
-
-  Write-Host "> Connect Figma to:" -ForegroundColor Cyan
-  Write-Host ""
-  for ($i = 0; $i -lt $count; $i++) {
-    if ($i -eq $selected) {
-      Write-Host "  > $($MenuOptions[$i])" -ForegroundColor Magenta
-    } else {
-      Write-Host "    $($MenuOptions[$i])" -ForegroundColor DarkGray
-    }
-  }
-  Write-Host ""
-  Write-Host "  up/down arrows, Enter to confirm" -ForegroundColor DarkGray
-
-  try {
-    while ($true) {
-      $key = [Console]::ReadKey($true)
-      switch ($key.Key) {
-        'UpArrow'   { $selected = (($selected - 1 + $count) % $count) }
-        'DownArrow' { $selected = (($selected + 1) % $count) }
-        'Enter'     { return $selected }
-        'Q'         { [Console]::CursorVisible = $true; Write-Host ""; Write-Host "  Cancelled."; exit 0 }
-      }
-
-      # Redraw: move cursor back to first option line
-      [Console]::SetCursorPosition(0, [Console]::CursorTop - ($count + 2))
-      for ($i = 0; $i -lt $count; $i++) {
-        $pad = ' ' * ([Console]::WindowWidth - 1)
-        Write-Host $pad -NoNewline
-        [Console]::SetCursorPosition(0, [Console]::CursorTop)
-        if ($i -eq $selected) {
-          Write-Host "  > $($MenuOptions[$i])" -ForegroundColor Magenta
-        } else {
-          Write-Host "    $($MenuOptions[$i])" -ForegroundColor DarkGray
-        }
-      }
-      Write-Host ""
-      Write-Host "  up/down arrows, Enter to confirm" -ForegroundColor DarkGray
-    }
-  } finally {
-    [Console]::CursorVisible = $true
-  }
-}
-
-function Show-PlainMenu {
-  Write-Step "Connect Figma to:"
-  for ($i = 0; $i -lt $MenuOptions.Count; $i++) {
-    Write-Host ("  {0}) {1}" -f ($i + 1), $MenuOptions[$i])
-  }
-  Write-Host ""
-  Write-Host ("  (Type 1-{0}, or Enter for {1})" -f $MenuOptions.Count, $MenuOptions[$DefaultIndex]) -ForegroundColor DarkGray
-  Write-Host ""
-  $choice = Read-Host "Your pick"
-  if ([string]::IsNullOrWhiteSpace($choice)) { $choice = "$($DefaultIndex + 1)" }
-  if ($choice -notmatch '^[1-5]$') {
-    Write-Err2 "Invalid choice."
-    exit 1
-  }
-  return ([int]$choice - 1)
-}
-
-# ---------- run the menu ----------
-if ($UseFancy) {
-  $PickedIndex = Show-FancyMenu
-} else {
-  $PickedIndex = Show-PlainMenu
-}
-
-# Map to flags
 $DoDesktop = $false; $DoCode = $false; $DoVSCode = $false; $DoStatus = $false
-switch ($PickedIndex) {
-  0 { $DoDesktop = $true }
-  1 { $DoCode    = $true }
-  2 { $DoVSCode  = $true }
-  3 { $DoDesktop = $true; $DoCode = $true; $DoVSCode = $true }
-  4 { $DoStatus  = $true }
+switch ($choice) {
+  '1' { $DoDesktop = $true }
+  '2' { $DoCode    = $true }
+  '3' { $DoVSCode  = $true }
+  '4' { $DoDesktop = $true; $DoCode = $true; $DoVSCode = $true }
+  '5' { $DoStatus  = $true }
+  default { Write-Err2 "Invalid choice."; exit 1 }
 }
 
 # ---------- status check (option 5) ----------
