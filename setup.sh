@@ -9,12 +9,23 @@
 # Cowork uses a 2-click UI flow (Customize → Figma → Connect) and isn't
 # scriptable, so it's documented in the README/landing page instead.
 #
+# Usage: ./setup.sh
+#        ./setup.sh --plain       # force number-typing menu (skip arrow keys)
+#
 # Safe to re-run. Preserves any other MCPs already configured.
 
 set -euo pipefail
 
+# ---------- flags ----------
+FORCE_PLAIN=false
+for arg in "$@"; do
+  case "$arg" in
+    --plain|-p) FORCE_PLAIN=true ;;
+  esac
+done
+
 # ---------- pretty output ----------
-BOLD=$'\033[1m'; DIM=$'\033[2m'
+BOLD=$'\033[1m'; DIM=$'\033[2m'; INV=$'\033[7m'
 RED=$'\033[31m'; GREEN=$'\033[32m'; YELLOW=$'\033[33m'
 BLUE=$'\033[34m'; MAGENTA=$'\033[35m'; CYAN=$'\033[36m'
 RESET=$'\033[0m'
@@ -59,28 +70,190 @@ cat <<EOF
 
 EOF
 
-# ---------- which apps? ----------
-# Cowork is handled separately (2-click UI flow documented in README + landing page),
-# so it's not part of the scripted install.
-step "Which apps do you want to set up?"
-echo "  1) Claude Desktop"
-echo "  2) Claude Code"
-echo "  3) VS Code"
-echo "  4) All — Claude Desktop, Claude Code, and VS Code"
-echo
-prompt "Pick [1-4, default 4]:"
-# Read from /dev/tty so this works under `curl | bash` (where stdin is the pipe, not the terminal)
-read -r choice </dev/tty || choice=""
-choice="${choice:-4}"
+# ---------- can we use the fancy arrow-key menu? ----------
+# We need:
+#   - stdout is a real terminal (not piped/redirected)
+#   - $TERM knows how to do cursor movement
+#   - User didn't pass --plain
+USE_FANCY=true
+if [[ "$FORCE_PLAIN" == "true" ]]; then USE_FANCY=false; fi
+if [[ ! -t 1 ]]; then USE_FANCY=false; fi
+if [[ "${TERM:-dumb}" == "dumb" ]] || [[ -z "${TERM:-}" ]]; then USE_FANCY=false; fi
+# tput sanity check — if these fail, fall back
+if ! tput cup 0 0 >/dev/null 2>&1; then USE_FANCY=false; fi
 
-DO_DESKTOP=0; DO_CODE=0; DO_VSCODE=0
-case "$choice" in
-  1) DO_DESKTOP=1 ;;
-  2) DO_CODE=1 ;;
-  3) DO_VSCODE=1 ;;
-  4) DO_DESKTOP=1; DO_CODE=1; DO_VSCODE=1 ;;
-  *) err "Invalid choice."; exit 1 ;;
+# ---------- menu definitions ----------
+MENU_OPTIONS=(
+  "Claude Desktop"
+  "Claude Code"
+  "VS Code"
+  "All of the above"
+  "Show me where it's already connected"
+)
+DEFAULT_INDEX=3  # 0-based; points to "All of the above"
+
+# ---------- arrow-key menu ----------
+fancy_menu() {
+  local selected=$DEFAULT_INDEX
+  local count=${#MENU_OPTIONS[@]}
+  local i
+  local key key2
+
+  # Hide cursor, ensure we restore it on any exit path
+  tput civis
+  trap 'tput cnorm' EXIT INT TERM
+
+  # Initial draw
+  echo "▸ Connect Figma to:"
+  echo
+  for (( i = 0; i < count; i++ )); do
+    if [[ $i -eq $selected ]]; then
+      printf "  ${BOLD}${MAGENTA}▸${RESET} ${BOLD}%s${RESET}\n" "${MENU_OPTIONS[i]}"
+    else
+      printf "    ${DIM}%s${RESET}\n" "${MENU_OPTIONS[i]}"
+    fi
+  done
+  echo
+  printf "  ${DIM}↑↓ arrows, Enter to confirm${RESET}\n"
+
+  # Input loop
+  while true; do
+    key=""
+    IFS= read -rsn1 key </dev/tty || true
+    if [[ "$key" == $'\x1b' ]]; then
+      key2=""
+      IFS= read -rsn2 -t 0.05 key2 </dev/tty || true
+      case "$key2" in
+        '[A'|'OA') selected=$(( (selected - 1 + count) % count )) ;;
+        '[B'|'OB') selected=$(( (selected + 1) % count )) ;;
+        *) : ;;
+      esac
+    elif [[ -z "$key" ]]; then
+      # Enter pressed
+      break
+    elif [[ "$key" == "q" ]] || [[ "$key" == "Q" ]]; then
+      tput cnorm
+      echo
+      echo "  Cancelled."
+      exit 0
+    fi
+
+    # Redraw: move cursor up past the menu + hint line
+    tput cuu $(( count + 2 ))
+    for (( i = 0; i < count; i++ )); do
+      tput el
+      if [[ $i -eq $selected ]]; then
+        printf "  ${BOLD}${MAGENTA}▸${RESET} ${BOLD}%s${RESET}\n" "${MENU_OPTIONS[i]}"
+      else
+        printf "    ${DIM}%s${RESET}\n" "${MENU_OPTIONS[i]}"
+      fi
+    done
+    tput el; echo
+    tput el; printf "  ${DIM}↑↓ arrows, Enter to confirm${RESET}\n"
+  done
+
+  # Restore cursor
+  tput cnorm
+  trap - EXIT INT TERM
+
+  PICKED_INDEX=$selected
+}
+
+# ---------- number-typing menu (fallback) ----------
+plain_menu() {
+  step "Connect Figma to:"
+  local i
+  for (( i = 0; i < ${#MENU_OPTIONS[@]}; i++ )); do
+    printf "  %d) %s\n" $((i + 1)) "${MENU_OPTIONS[i]}"
+  done
+  echo
+  printf "  ${DIM}(Type 1-%d, or Enter for %s)${RESET}\n" \
+    ${#MENU_OPTIONS[@]} "${MENU_OPTIONS[DEFAULT_INDEX]}"
+  echo
+  prompt "Your pick:"
+  local choice
+  read -r choice </dev/tty || choice=""
+  choice="${choice:-$((DEFAULT_INDEX + 1))}"
+  if ! [[ "$choice" =~ ^[1-5]$ ]]; then
+    err "Invalid choice."
+    exit 1
+  fi
+  PICKED_INDEX=$((choice - 1))
+}
+
+# ---------- run the menu ----------
+PICKED_INDEX=0
+if [[ "$USE_FANCY" == "true" ]]; then
+  fancy_menu
+else
+  plain_menu
+fi
+
+# Map to flags
+DO_DESKTOP=0; DO_CODE=0; DO_VSCODE=0; DO_STATUS=0
+case $PICKED_INDEX in
+  0) DO_DESKTOP=1 ;;
+  1) DO_CODE=1 ;;
+  2) DO_VSCODE=1 ;;
+  3) DO_DESKTOP=1; DO_CODE=1; DO_VSCODE=1 ;;
+  4) DO_STATUS=1 ;;
 esac
+
+# ---------- status check (option 5) ----------
+if [[ $DO_STATUS -eq 1 ]]; then
+  step "Where Figma MCP is already connected"
+  echo
+
+  # Claude Desktop
+  if [[ -f "$CLAUDE_DESKTOP_CONFIG" ]] \
+     && python3 -c "
+import json, sys
+try:
+  d = json.load(open(r'''$CLAUDE_DESKTOP_CONFIG'''))
+  sys.exit(0 if 'figma' in (d.get('mcpServers') or {}) else 1)
+except Exception:
+  sys.exit(1)
+" 2>/dev/null; then
+    printf "  ${GREEN}✓${RESET} ${BOLD}Claude Desktop${RESET}   → figma MCP found in claude_desktop_config.json\n"
+  else
+    printf "  ${DIM}○ ${BOLD}Claude Desktop${RESET}   ${DIM}→ not configured${RESET}\n"
+  fi
+
+  # Claude Code
+  if command -v claude >/dev/null 2>&1; then
+    if claude mcp list 2>/dev/null | grep -q "^figma\b\|^figma "; then
+      printf "  ${GREEN}✓${RESET} ${BOLD}Claude Code${RESET}      → figma in claude mcp list\n"
+    else
+      printf "  ${DIM}○ ${BOLD}Claude Code${RESET}      ${DIM}→ not configured${RESET}\n"
+    fi
+  else
+    printf "  ${DIM}○ ${BOLD}Claude Code${RESET}      ${DIM}→ CLI not installed${RESET}\n"
+  fi
+
+  # VS Code
+  if [[ -f "$VSCODE_MCP_CONFIG" ]] \
+     && python3 -c "
+import json, sys
+try:
+  d = json.load(open(r'''$VSCODE_MCP_CONFIG'''))
+  sys.exit(0 if 'figma' in (d.get('servers') or {}) else 1)
+except Exception:
+  sys.exit(1)
+" 2>/dev/null; then
+    printf "  ${GREEN}✓${RESET} ${BOLD}VS Code${RESET}          → figma in mcp.json\n"
+  else
+    printf "  ${DIM}○ ${BOLD}VS Code${RESET}          ${DIM}→ not configured${RESET}\n"
+  fi
+
+  # Cowork (can't check programmatically)
+  printf "  ${BLUE}?${RESET} ${BOLD}Cowork${RESET}           ${DIM}→ can't check from a script${RESET}\n"
+  printf "    ${DIM}To verify: open Claude → Cowork tab → Customize → Connectors → Figma${RESET}\n"
+
+  echo
+  printf "  ${DIM}Re-run this script to add Figma to any app that's still unchecked.${RESET}\n"
+  echo
+  exit 0
+fi
 
 # ---------- preflight ----------
 if [[ $DO_DESKTOP -eq 1 ]]; then
