@@ -37,22 +37,21 @@ Write-Host "  +--+  +--+  +--+" -ForegroundColor White
 Write-Host "  |  |  |  |  |  |" -NoNewline -ForegroundColor White
 Write-Host "     Figma MCP - One-Click Setup" -ForegroundColor White
 Write-Host "  +--+  +--+  +--+" -NoNewline -ForegroundColor White
-Write-Host "     design -> AI, without the JSON" -ForegroundColor DarkGray
+Write-Host "     design -> AI" -ForegroundColor DarkGray
 Write-Host ""
-Write-Host "  Connects Figma to Claude Desktop, Claude Code, Cowork, and VS Code." -ForegroundColor DarkGray
-Write-Host "  No API tokens - uses OAuth. Safe to re-run." -ForegroundColor DarkGray
+Write-Host "  Safe to re-run." -ForegroundColor DarkGray
 Write-Host ""
 
-# ---------- which clients? ----------
-Write-Step "Which clients do you want to set up?"
-Write-Host "  1) All four - Claude Desktop, Claude Code, Cowork, and VS Code (recommended)"
+# ---------- which apps? ----------
+# Cowork is always included in "All" - it's a guided 2-click UI flow, not scripted,
+# so it doesn't get its own menu option.
+Write-Step "Which apps do you want to set up?"
+Write-Host "  1) All - Claude Desktop, Claude Code, Cowork, and VS Code (recommended)"
 Write-Host "  2) Claude Desktop only"
 Write-Host "  3) Claude Code only"
-Write-Host "  4) Cowork only (just show me the two clicks)"
-Write-Host "  5) VS Code only"
-Write-Host "  6) Custom - pick a combo"
+Write-Host "  4) VS Code only"
 Write-Host ""
-$choice = Read-Host "Pick [1-6, default 1]"
+$choice = Read-Host "Pick [1-4, default 1]"
 if ([string]::IsNullOrWhiteSpace($choice)) { $choice = '1' }
 
 $DoDesktop = $false; $DoCode = $false; $DoCowork = $false; $DoVSCode = $false
@@ -60,14 +59,7 @@ switch ($choice) {
   '1' { $DoDesktop = $true; $DoCode = $true; $DoCowork = $true; $DoVSCode = $true }
   '2' { $DoDesktop = $true }
   '3' { $DoCode = $true }
-  '4' { $DoCowork = $true }
-  '5' { $DoVSCode = $true }
-  '6' {
-    $DoDesktop = Prompt-YN "Claude Desktop?"
-    $DoCode    = Prompt-YN "Claude Code?"
-    $DoCowork  = Prompt-YN "Cowork?"
-    $DoVSCode  = Prompt-YN "VS Code?"
-  }
+  '4' { $DoVSCode = $true }
   default { Write-Err2 "Invalid choice."; exit 1 }
 }
 

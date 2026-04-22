@@ -51,24 +51,24 @@ cat <<EOF
 
   ${RED}┌──┐${RESET}  ${MAGENTA}┌──┐${RESET}  ${BLUE}┌──┐${RESET}
   ${RED}│  │${RESET}  ${MAGENTA}│  │${RESET}  ${BLUE}│  │${RESET}     ${BOLD}Figma MCP — One-Click Setup${RESET}
-  ${RED}└──┘${RESET}  ${MAGENTA}└──┘${RESET}  ${BLUE}└──┘${RESET}     ${DIM}design → AI, without the JSON${RESET}
+  ${RED}└──┘${RESET}  ${MAGENTA}└──┘${RESET}  ${BLUE}└──┘${RESET}     ${DIM}design → AI${RESET}
 
-  ${DIM}Connects Figma to Claude Desktop, Claude Code, Cowork, and VS Code.${RESET}
-  ${DIM}No API tokens — uses OAuth. Safe to re-run.${RESET}
+  ${DIM}Safe to re-run.${RESET}
 
 EOF
 
-# ---------- which clients? ----------
-step "Which clients do you want to set up?"
-echo "  1) All four — Claude Desktop, Claude Code, Cowork, and VS Code (recommended)"
+# ---------- which apps? ----------
+# Always include Cowork in "All" — Cowork is guided (2 clicks in the Claude UI),
+# not scripted, so it doesn't get its own menu option.
+step "Which apps do you want to set up?"
+echo "  1) All — Claude Desktop, Claude Code, Cowork, and VS Code (recommended)"
 echo "  2) Claude Desktop only"
 echo "  3) Claude Code only"
-echo "  4) Cowork only (just show me the two clicks)"
-echo "  5) VS Code only"
-echo "  6) Custom — pick a combo"
+echo "  4) VS Code only"
 echo
-prompt "Pick [1-6, default 1]:"
-read -r choice
+prompt "Pick [1-4, default 1]:"
+# Read from /dev/tty so this works under `curl | bash` (where stdin is the pipe, not the terminal)
+read -r choice </dev/tty || choice=""
 choice="${choice:-1}"
 
 DO_DESKTOP=0; DO_CODE=0; DO_COWORK=0; DO_VSCODE=0
@@ -76,14 +76,7 @@ case "$choice" in
   1) DO_DESKTOP=1; DO_CODE=1; DO_COWORK=1; DO_VSCODE=1 ;;
   2) DO_DESKTOP=1 ;;
   3) DO_CODE=1 ;;
-  4) DO_COWORK=1 ;;
-  5) DO_VSCODE=1 ;;
-  6)
-    prompt "Claude Desktop? [Y/n]:"; read -r a; [[ "${a:-y}" =~ ^[Yy] ]] && DO_DESKTOP=1
-    prompt "Claude Code? [Y/n]:";    read -r a; [[ "${a:-y}" =~ ^[Yy] ]] && DO_CODE=1
-    prompt "Cowork? [Y/n]:";         read -r a; [[ "${a:-y}" =~ ^[Yy] ]] && DO_COWORK=1
-    prompt "VS Code? [Y/n]:";        read -r a; [[ "${a:-y}" =~ ^[Yy] ]] && DO_VSCODE=1
-    ;;
+  4) DO_VSCODE=1 ;;
   *) err "Invalid choice."; exit 1 ;;
 esac
 
@@ -218,7 +211,7 @@ if [[ $DO_COWORK -eq 1 ]]; then
 EOF
   if [[ "$PLATFORM" == "mac" ]]; then
     prompt "Open Claude now? [Y/n]:"
-    read -r a
+    read -r a </dev/tty || a=""
     if [[ "${a:-y}" =~ ^[Yy] ]]; then
       if [[ -d "/Applications/Claude.app" ]]; then
         open -a "Claude"
@@ -234,7 +227,7 @@ fi
 if [[ $DO_DESKTOP -eq 1 && "$PLATFORM" == "mac" ]]; then
   step "Restart Claude Desktop so the new config loads"
   prompt "Restart Claude Desktop now? [Y/n]:"
-  read -r a
+  read -r a </dev/tty || a=""
   if [[ "${a:-y}" =~ ^[Yy] ]]; then
     osascript -e 'quit app "Claude"' 2>/dev/null || true
     sleep 2
