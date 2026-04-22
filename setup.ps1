@@ -48,20 +48,20 @@ Write-Host ""
 # Cowork is handled separately (2-click UI flow documented in README + landing page),
 # so it's not part of the scripted install.
 Write-Step "Which apps do you want to set up?"
-Write-Host "  1) All - Claude Desktop, Claude Code, and VS Code"
-Write-Host "  2) Claude Desktop"
-Write-Host "  3) Claude Code"
-Write-Host "  4) VS Code"
+Write-Host "  1) Claude Desktop"
+Write-Host "  2) Claude Code"
+Write-Host "  3) VS Code"
+Write-Host "  4) All - Claude Desktop, Claude Code, and VS Code"
 Write-Host ""
-$choice = Read-Host "Pick [1-4, default 1]"
-if ([string]::IsNullOrWhiteSpace($choice)) { $choice = '1' }
+$choice = Read-Host "Pick [1-4, default 4]"
+if ([string]::IsNullOrWhiteSpace($choice)) { $choice = '4' }
 
 $DoDesktop = $false; $DoCode = $false; $DoVSCode = $false
 switch ($choice) {
-  '1' { $DoDesktop = $true; $DoCode = $true; $DoVSCode = $true }
-  '2' { $DoDesktop = $true }
-  '3' { $DoCode = $true }
-  '4' { $DoVSCode = $true }
+  '1' { $DoDesktop = $true }
+  '2' { $DoCode = $true }
+  '3' { $DoVSCode = $true }
+  '4' { $DoDesktop = $true; $DoCode = $true; $DoVSCode = $true }
   default { Write-Err2 "Invalid choice."; exit 1 }
 }
 

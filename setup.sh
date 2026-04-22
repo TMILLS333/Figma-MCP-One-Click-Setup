@@ -63,22 +63,22 @@ EOF
 # Cowork is handled separately (2-click UI flow documented in README + landing page),
 # so it's not part of the scripted install.
 step "Which apps do you want to set up?"
-echo "  1) All — Claude Desktop, Claude Code, and VS Code"
-echo "  2) Claude Desktop"
-echo "  3) Claude Code"
-echo "  4) VS Code"
+echo "  1) Claude Desktop"
+echo "  2) Claude Code"
+echo "  3) VS Code"
+echo "  4) All — Claude Desktop, Claude Code, and VS Code"
 echo
-prompt "Pick [1-4, default 1]:"
+prompt "Pick [1-4, default 4]:"
 # Read from /dev/tty so this works under `curl | bash` (where stdin is the pipe, not the terminal)
 read -r choice </dev/tty || choice=""
-choice="${choice:-1}"
+choice="${choice:-4}"
 
 DO_DESKTOP=0; DO_CODE=0; DO_VSCODE=0
 case "$choice" in
-  1) DO_DESKTOP=1; DO_CODE=1; DO_VSCODE=1 ;;
-  2) DO_DESKTOP=1 ;;
-  3) DO_CODE=1 ;;
-  4) DO_VSCODE=1 ;;
+  1) DO_DESKTOP=1 ;;
+  2) DO_CODE=1 ;;
+  3) DO_VSCODE=1 ;;
+  4) DO_DESKTOP=1; DO_CODE=1; DO_VSCODE=1 ;;
   *) err "Invalid choice."; exit 1 ;;
 esac
 
