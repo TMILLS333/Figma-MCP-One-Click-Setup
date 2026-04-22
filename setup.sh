@@ -9,23 +9,12 @@
 # Cowork uses a 2-click UI flow (Customize → Figma → Connect) and isn't
 # scriptable, so it's documented in the README/landing page instead.
 #
-# Usage: ./setup.sh
-#        ./setup.sh --plain       # force number-typing menu (skip arrow keys)
-#
 # Safe to re-run. Preserves any other MCPs already configured.
 
 set -euo pipefail
 
-# ---------- flags ----------
-FORCE_PLAIN=false
-for arg in "$@"; do
-  case "$arg" in
-    --plain|-p) FORCE_PLAIN=true ;;
-  esac
-done
-
 # ---------- pretty output ----------
-BOLD=$'\033[1m'; DIM=$'\033[2m'; INV=$'\033[7m'
+BOLD=$'\033[1m'; DIM=$'\033[2m'
 RED=$'\033[31m'; GREEN=$'\033[32m'; YELLOW=$'\033[33m'
 BLUE=$'\033[34m'; MAGENTA=$'\033[35m'; CYAN=$'\033[36m'
 RESET=$'\033[0m'
@@ -70,133 +59,29 @@ cat <<EOF
 
 EOF
 
-# ---------- can we use the fancy arrow-key menu? ----------
-# We need:
-#   - stdout is a real terminal (not piped/redirected)
-#   - $TERM knows how to do cursor movement
-#   - User didn't pass --plain
-USE_FANCY=true
-if [[ "$FORCE_PLAIN" == "true" ]]; then USE_FANCY=false; fi
-if [[ ! -t 1 ]]; then USE_FANCY=false; fi
-if [[ "${TERM:-dumb}" == "dumb" ]] || [[ -z "${TERM:-}" ]]; then USE_FANCY=false; fi
-# tput sanity check — if these fail, fall back
-if ! tput cup 0 0 >/dev/null 2>&1; then USE_FANCY=false; fi
+# ---------- menu ----------
+step "Connect Figma to:"
+echo "  1) Claude Desktop"
+echo "  2) Claude Code"
+echo "  3) VS Code"
+echo "  4) All of the above"
+echo "  5) Show me where it's already connected"
+echo
+printf "  ${DIM}(Type 1-5, or Enter for ${BOLD}All of the above${RESET}${DIM})${RESET}\n"
+echo
+prompt "Your pick:"
+# Read from /dev/tty so this works under `curl | bash` (where stdin is the pipe)
+read -r choice </dev/tty || choice=""
+choice="${choice:-4}"
 
-# ---------- menu definitions ----------
-MENU_OPTIONS=(
-  "Claude Desktop"
-  "Claude Code"
-  "VS Code"
-  "All of the above"
-  "Show me where it's already connected"
-)
-DEFAULT_INDEX=3  # 0-based; points to "All of the above"
-
-# ---------- arrow-key menu ----------
-fancy_menu() {
-  local selected=$DEFAULT_INDEX
-  local count=${#MENU_OPTIONS[@]}
-  local i
-  local key key2
-
-  # Hide cursor, ensure we restore it on any exit path
-  tput civis
-  trap 'tput cnorm' EXIT INT TERM
-
-  # Initial draw
-  echo "▸ Connect Figma to:"
-  echo
-  for (( i = 0; i < count; i++ )); do
-    if [[ $i -eq $selected ]]; then
-      printf "  ${BOLD}${MAGENTA}▸${RESET} ${BOLD}%s${RESET}\n" "${MENU_OPTIONS[i]}"
-    else
-      printf "    ${DIM}%s${RESET}\n" "${MENU_OPTIONS[i]}"
-    fi
-  done
-  echo
-  printf "  ${DIM}↑↓ arrows, Enter to confirm${RESET}\n"
-
-  # Input loop
-  while true; do
-    key=""
-    IFS= read -rsn1 key </dev/tty || true
-    if [[ "$key" == $'\x1b' ]]; then
-      key2=""
-      IFS= read -rsn2 -t 0.05 key2 </dev/tty || true
-      case "$key2" in
-        '[A'|'OA') selected=$(( (selected - 1 + count) % count )) ;;
-        '[B'|'OB') selected=$(( (selected + 1) % count )) ;;
-        *) : ;;
-      esac
-    elif [[ -z "$key" ]]; then
-      # Enter pressed
-      break
-    elif [[ "$key" == "q" ]] || [[ "$key" == "Q" ]]; then
-      tput cnorm
-      echo
-      echo "  Cancelled."
-      exit 0
-    fi
-
-    # Redraw: move cursor up past the menu + hint line
-    tput cuu $(( count + 2 ))
-    for (( i = 0; i < count; i++ )); do
-      tput el
-      if [[ $i -eq $selected ]]; then
-        printf "  ${BOLD}${MAGENTA}▸${RESET} ${BOLD}%s${RESET}\n" "${MENU_OPTIONS[i]}"
-      else
-        printf "    ${DIM}%s${RESET}\n" "${MENU_OPTIONS[i]}"
-      fi
-    done
-    tput el; echo
-    tput el; printf "  ${DIM}↑↓ arrows, Enter to confirm${RESET}\n"
-  done
-
-  # Restore cursor
-  tput cnorm
-  trap - EXIT INT TERM
-
-  PICKED_INDEX=$selected
-}
-
-# ---------- number-typing menu (fallback) ----------
-plain_menu() {
-  step "Connect Figma to:"
-  local i
-  for (( i = 0; i < ${#MENU_OPTIONS[@]}; i++ )); do
-    printf "  %d) %s\n" $((i + 1)) "${MENU_OPTIONS[i]}"
-  done
-  echo
-  printf "  ${DIM}(Type 1-%d, or Enter for %s)${RESET}\n" \
-    ${#MENU_OPTIONS[@]} "${MENU_OPTIONS[DEFAULT_INDEX]}"
-  echo
-  prompt "Your pick:"
-  local choice
-  read -r choice </dev/tty || choice=""
-  choice="${choice:-$((DEFAULT_INDEX + 1))}"
-  if ! [[ "$choice" =~ ^[1-5]$ ]]; then
-    err "Invalid choice."
-    exit 1
-  fi
-  PICKED_INDEX=$((choice - 1))
-}
-
-# ---------- run the menu ----------
-PICKED_INDEX=0
-if [[ "$USE_FANCY" == "true" ]]; then
-  fancy_menu
-else
-  plain_menu
-fi
-
-# Map to flags
 DO_DESKTOP=0; DO_CODE=0; DO_VSCODE=0; DO_STATUS=0
-case $PICKED_INDEX in
-  0) DO_DESKTOP=1 ;;
-  1) DO_CODE=1 ;;
-  2) DO_VSCODE=1 ;;
-  3) DO_DESKTOP=1; DO_CODE=1; DO_VSCODE=1 ;;
-  4) DO_STATUS=1 ;;
+case "$choice" in
+  1) DO_DESKTOP=1 ;;
+  2) DO_CODE=1 ;;
+  3) DO_VSCODE=1 ;;
+  4) DO_DESKTOP=1; DO_CODE=1; DO_VSCODE=1 ;;
+  5) DO_STATUS=1 ;;
+  *) err "Invalid choice."; exit 1 ;;
 esac
 
 # ---------- status check (option 5) ----------
