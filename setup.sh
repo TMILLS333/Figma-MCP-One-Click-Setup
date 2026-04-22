@@ -4,8 +4,10 @@
 # Adds the official Figma MCP (https://mcp.figma.com/mcp, OAuth) to:
 #   - Claude Desktop
 #   - Claude Code
-#   - Cowork (guided: Figma is an official connector in Cowork's registry)
 #   - VS Code
+#
+# Cowork uses a 2-click UI flow (Customize → Figma → Connect) and isn't
+# scriptable, so it's documented in the README/landing page instead.
 #
 # Safe to re-run. Preserves any other MCPs already configured.
 
@@ -58,22 +60,22 @@ cat <<EOF
 EOF
 
 # ---------- which apps? ----------
-# Always include Cowork in "All" — Cowork is guided (2 clicks in the Claude UI),
-# not scripted, so it doesn't get its own menu option.
+# Cowork is handled separately (2-click UI flow documented in README + landing page),
+# so it's not part of the scripted install.
 step "Which apps do you want to set up?"
-echo "  1) All — Claude Desktop, Claude Code, Cowork, and VS Code (recommended)"
-echo "  2) Claude Desktop only"
-echo "  3) Claude Code only"
-echo "  4) VS Code only"
+echo "  1) All — Claude Desktop, Claude Code, and VS Code"
+echo "  2) Claude Desktop"
+echo "  3) Claude Code"
+echo "  4) VS Code"
 echo
 prompt "Pick [1-4, default 1]:"
 # Read from /dev/tty so this works under `curl | bash` (where stdin is the pipe, not the terminal)
 read -r choice </dev/tty || choice=""
 choice="${choice:-1}"
 
-DO_DESKTOP=0; DO_CODE=0; DO_COWORK=0; DO_VSCODE=0
+DO_DESKTOP=0; DO_CODE=0; DO_VSCODE=0
 case "$choice" in
-  1) DO_DESKTOP=1; DO_CODE=1; DO_COWORK=1; DO_VSCODE=1 ;;
+  1) DO_DESKTOP=1; DO_CODE=1; DO_VSCODE=1 ;;
   2) DO_DESKTOP=1 ;;
   3) DO_CODE=1 ;;
   4) DO_VSCODE=1 ;;
@@ -193,34 +195,6 @@ path.write_text(json.dumps(data, indent=2) + "\n")
 PY
   ok "VS Code configured."
   echo "    ${DIM}In VS Code, open mcp.json and click 'Start' above the figma server entry.${RESET}"
-fi
-
-# ---------- Cowork ----------
-if [[ $DO_COWORK -eq 1 ]]; then
-  step "Setting up Cowork"
-  cat <<EOF
-  Figma is an official Cowork connector — this part is 2 clicks, no file editing.
-
-  ${BOLD}In Claude:${RESET}
-    1. Open Claude Desktop and click the ${BOLD}Cowork${RESET} tab.
-    2. Click ${BOLD}Customize${RESET} in the left sidebar.
-    3. Click ${BOLD}Browse connectors${RESET} (or Browse plugins).
-    4. Find ${BOLD}Figma${RESET} in the list and click ${BOLD}Connect${RESET}.
-    5. Sign in to Figma, click ${BOLD}Allow${RESET}. Done.
-
-EOF
-  if [[ "$PLATFORM" == "mac" ]]; then
-    prompt "Open Claude now? [Y/n]:"
-    read -r a </dev/tty || a=""
-    if [[ "${a:-y}" =~ ^[Yy] ]]; then
-      if [[ -d "/Applications/Claude.app" ]]; then
-        open -a "Claude"
-        ok "Claude launched. Click the Cowork tab → Customize → Figma → Connect."
-      else
-        warn "Claude.app not found in /Applications. Open it manually."
-      fi
-    fi
-  fi
 fi
 
 # ---------- restart Claude Desktop so config loads ----------

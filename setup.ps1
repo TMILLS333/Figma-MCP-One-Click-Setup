@@ -3,8 +3,10 @@
 # Adds the official Figma MCP (https://mcp.figma.com/mcp, OAuth) to:
 #   - Claude Desktop
 #   - Claude Code
-#   - Cowork (guided: Figma is an official connector in Cowork's registry)
 #   - VS Code
+#
+# Cowork uses a 2-click UI flow (Customize -> Figma -> Connect) and isn't
+# scriptable, so it's documented in the README/landing page instead.
 #
 # Safe to re-run. Preserves any other MCPs already configured.
 # Uses native PowerShell JSON - no external dependencies.
@@ -43,20 +45,20 @@ Write-Host "  Safe to re-run." -ForegroundColor DarkGray
 Write-Host ""
 
 # ---------- which apps? ----------
-# Cowork is always included in "All" - it's a guided 2-click UI flow, not scripted,
-# so it doesn't get its own menu option.
+# Cowork is handled separately (2-click UI flow documented in README + landing page),
+# so it's not part of the scripted install.
 Write-Step "Which apps do you want to set up?"
-Write-Host "  1) All - Claude Desktop, Claude Code, Cowork, and VS Code (recommended)"
-Write-Host "  2) Claude Desktop only"
-Write-Host "  3) Claude Code only"
-Write-Host "  4) VS Code only"
+Write-Host "  1) All - Claude Desktop, Claude Code, and VS Code"
+Write-Host "  2) Claude Desktop"
+Write-Host "  3) Claude Code"
+Write-Host "  4) VS Code"
 Write-Host ""
 $choice = Read-Host "Pick [1-4, default 1]"
 if ([string]::IsNullOrWhiteSpace($choice)) { $choice = '1' }
 
-$DoDesktop = $false; $DoCode = $false; $DoCowork = $false; $DoVSCode = $false
+$DoDesktop = $false; $DoCode = $false; $DoVSCode = $false
 switch ($choice) {
-  '1' { $DoDesktop = $true; $DoCode = $true; $DoCowork = $true; $DoVSCode = $true }
+  '1' { $DoDesktop = $true; $DoCode = $true; $DoVSCode = $true }
   '2' { $DoDesktop = $true }
   '3' { $DoCode = $true }
   '4' { $DoVSCode = $true }
@@ -205,34 +207,6 @@ if ($DoVSCode) {
   $vsConfig | ConvertTo-Json -Depth 10 | Set-Content -Path $VSCodeMcpConfig -Encoding UTF8
   Write-Ok "VS Code configured."
   Write-Host "    In VS Code, open mcp.json and click 'Start' above the figma server entry." -ForegroundColor DarkGray
-}
-
-# ---------- Cowork ----------
-if ($DoCowork) {
-  Write-Step "Setting up Cowork"
-  Write-Host "  Figma is an official Cowork connector - this part is 2 clicks, no file editing." -ForegroundColor DarkGray
-  Write-Host ""
-  Write-Host "  In Claude:" -ForegroundColor White
-  Write-Host "    1. Open Claude Desktop and click the Cowork tab."
-  Write-Host "    2. Click Customize in the left sidebar."
-  Write-Host "    3. Click Browse connectors (or Browse plugins)."
-  Write-Host "    4. Find Figma in the list and click Connect."
-  Write-Host "    5. Sign in to Figma, click Allow. Done."
-  Write-Host ""
-
-  if (Prompt-YN "Open Claude now?") {
-    $claudePath = @(
-      "$env:LOCALAPPDATA\AnthropicClaude\Claude.exe",
-      "$env:LOCALAPPDATA\Programs\Claude\Claude.exe",
-      "$env:ProgramFiles\Claude\Claude.exe"
-    ) | Where-Object { Test-Path $_ } | Select-Object -First 1
-    if ($claudePath) {
-      Start-Process $claudePath
-      Write-Ok "Claude launched. Click the Cowork tab -> Customize -> Figma -> Connect."
-    } else {
-      Write-Warn2 "Couldn't find Claude.exe automatically. Open it from the Start menu."
-    }
-  }
 }
 
 # ---------- restart Claude Desktop ----------
